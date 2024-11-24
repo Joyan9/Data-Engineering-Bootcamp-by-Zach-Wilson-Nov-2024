@@ -1,5 +1,6 @@
 # Data Engineering Bootcamp SQL Queries  
 ### By Zach Wilson - November 2024  
+This repository is inspired by the teachings of [Zach Wilson](https://github.com/EcZachly) from the November 2024 Data Engineering Bootcamp.
 
 This repository contains SQL queries and notes from the **Data Engineering Bootcamp** conducted by Zach Wilson in November 2024. 
 
