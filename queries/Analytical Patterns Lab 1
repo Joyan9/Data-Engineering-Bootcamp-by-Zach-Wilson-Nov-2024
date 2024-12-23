@@ -1,0 +1,76 @@
+/*
+CREATE TABLE users_growth_accounting (
+user_id TEXT,
+first_active_date DATE,
+last_active_date DATE,
+daily_active_state TEXT,
+weekly_active_state TEXT,
+dates_active DATE[],
+date DATE,
+PRIMARY KEY (user_id, date)
+);
+ */
+INSERT INTO users_growth_accounting 
+WITH
+  yesterday AS (
+    SELECT
+      *
+    FROM
+      users_growth_accounting
+    WHERE
+      date = '2023-01-07'
+  ),
+  today AS (
+    SELECT
+      CAST(user_id AS TEXT),
+      CAST(event_time AS DATE) as today_date,
+      COUNT(1)
+    FROM
+      events
+    WHERE
+      CAST(event_time AS DATE) = '2023-01-08'
+    	AND user_id IS NOT NULL
+    GROUP BY
+      1,
+      2
+  )
+SELECT
+  COALESCE(t.user_id, y.user_id) as user_id,
+  COALESCE(y.first_active_date, t.today_date) as first_active_date, -- first check if the user was present yesterday and then fetch the first active date, if not it means its a new user
+  COALESCE(t.today_date, y.last_active_date) as last_active_date,
+  
+  CASE 
+  -- New User
+  WHEN y.user_id IS NULL AND t.user_id IS NOT NULL THEN 'New'
+  -- Resurrected
+  WHEN y.last_active_date < t.today_date - Interval '1 day' THEN 'Resurrected'
+  -- Retained
+  WHEN y.last_active_date = t.today_date - Interval '1 day' THEN 'Retained'
+  -- Churned
+  WHEN t.today_date IS NULL AND y.last_active_date = y.date THEN 'Churned'
+  ELSE 'Stale'
+  END AS daily_active_state,
+  
+  -- Weekly Active State
+  CASE 
+  -- New User
+  WHEN y.user_id IS NULL AND t.user_id IS NOT NULL THEN 'New'
+  -- Resurrected
+  WHEN y.last_active_date < t.today_date - Interval '7 day' THEN 'Resurrected'
+  -- Retained
+  WHEN y.last_active_date >= t.today_date - Interval '7 day' THEN 'Retained'
+  -- Churned
+  WHEN t.today_date IS NULL AND y.last_active_date = y.date - Interval '7 day' THEN 'Churned'
+  ELSE 'Stale'
+  END AS weekly_active_state,
+  
+  COALESCE(y.dates_active, ARRAY[]::DATE[]) || -- get dates active array from history, if not present then create blank array
+  -- Append
+  CASE
+    WHEN t.user_id IS NOT NULL THEN ARRAY[t.today_date] -- append to date array
+    ELSE ARRAY[]::DATE[]
+  END AS date_list,
+  COALESCE(t.today_date, y.date + Interval '1 day') as date
+FROM
+  today t
+  FULL OUTER JOIN yesterday y ON t.user_id = y.user_id
